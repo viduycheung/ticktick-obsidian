@@ -1,6 +1,6 @@
 {
-	"id": "ticktick-plugin",
-	"name": "TickTick Plugin",
+	"id": "ticktick",
+	"name": "TickTick",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
 	"description": "",
