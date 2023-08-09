@@ -128,7 +128,6 @@ export default class TickTickPlugin extends Plugin {
 			const data = await this.requestGET("/open/v1/user/info");
 			if (data) {
 				const { json } = data;
-				console.log({ json });
 				this.settings.avatarUrl = json.avatarUrl;
 				this.settings.name = json.name;
 				this.saveSettings();
@@ -179,7 +178,17 @@ export default class TickTickPlugin extends Plugin {
 				Authorization: `Bearer ${this.settings.token}`,
 			},
 		}).catch((e) => {
-			console.log(e);
+			switch (e.status) {
+				case 401: {
+					new Notice(
+						"Your TickTick login credentials have expired. Please login again."
+					);
+					this.logout();
+					break;
+				}
+				default:
+					break;
+			}
 		});
 	};
 
@@ -194,7 +203,17 @@ export default class TickTickPlugin extends Plugin {
 			},
 			body: JSON.stringify(body),
 		}).catch((e) => {
-			console.log(e);
+			switch (e.status) {
+				case 401: {
+					new Notice(
+						"Your TickTick login credentials have expired. Please login again."
+					);
+					this.logout();
+					break;
+				}
+				default:
+					break;
+			}
 		});
 	};
 }
