@@ -6,3 +6,14 @@ available in the app when your plugin is enabled.
 If your plugin does not need CSS, delete this file.
 
 */
+.modal-line {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 12px;
+}
+
+.modal-line > .label {
+	width: 4em;
+	margin-right: 4px;
+}
