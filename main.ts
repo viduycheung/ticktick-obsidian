@@ -10,6 +10,7 @@ import {
 	ButtonComponent,
 	TextComponent,
 	TextAreaComponent,
+	TFile,
 } from "obsidian";
 import { BrowserWindow } from "@electron/remote";
 
@@ -34,11 +35,15 @@ type Task = {
 interface TickTickPluginSettings {
 	token: string;
 	projects: Project[];
+	avatarUrl: "";
+	name: "";
 }
 
 const DEFAULT_SETTINGS: TickTickPluginSettings = {
 	token: "",
 	projects: [],
+	avatarUrl: "",
+	name: "",
 };
 
 export default class TickTickPlugin extends Plugin {
@@ -47,47 +52,60 @@ export default class TickTickPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText("Status Bar Text");
-
 		this.addCommand({
-			id: "ticktick-open-oauth-modal",
-			name: "Connect to TickTick",
+			id: "ticktick-create-task",
+			name: "New task",
 			callback: () => {
-				if (this.settings.token) {
-					new Notice("Already sign in TickTick");
-					return;
+				if (this.checkUserLoginStatus()) {
+					const title = (() => {
+						const activeFile =
+							this.app.workspace.activeEditor?.file;
+						const sel =
+							this.app.workspace.activeEditor?.editor?.getSelection();
+						if (activeFile) {
+							return `[${
+								sel || activeFile.name
+							}](${this.getFileLink(activeFile)})`;
+						}
+						return "";
+					})();
+					new CreateTaskModal(this.app, this, { title }).open();
 				}
-				new OauthModal(this.app, this).open();
 			},
 		});
 
-		this.addCommand({
-			id: "ticktick-create-task-modal",
-			name: "New Task",
-			callback: () => {
-				if (!this.settings.token) {
-					new Notice("User not sign in");
-					return;
-				}
-				new CreateTaskModal(this.app, this).open();
-			},
-		});
-
-		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new SettingTab(this.app, this));
 
 		this.registerInterval(
 			window.setInterval(() => {
-				if (this.settings.token) {
-					this.fetchProjects();
-				}
+				this.fetchUserData();
 			}, 5 * 60 * 1000)
 		);
 	}
 
 	onunload() {}
+
+	getFileLink = (file: TFile) => {
+		return `obsidian://open?vault=${file.vault.getName()}&file=${encodeURIComponent(
+			file.name
+		)}`;
+	};
+
+	checkUserLoginStatus = () => {
+		const isLogin = this.settings.token;
+		if (!isLogin) {
+			new Notice("TickTick is not logged in");
+		}
+		return isLogin;
+	};
+
+	logout = () => {
+		this.settings.token = "";
+		this.settings.projects = [];
+		this.settings.avatarUrl = "";
+		this.settings.name = "";
+		this.saveSettings();
+	};
 
 	fetchProjects = async () => {
 		try {
@@ -105,12 +123,26 @@ export default class TickTickPlugin extends Plugin {
 		}
 	};
 
+	fetchUserInfo = async () => {
+		try {
+			const data = await this.requestGET("/open/v1/user/info");
+			if (data) {
+				const { json } = data;
+				console.log({ json });
+				this.settings.avatarUrl = json.avatarUrl;
+				this.settings.name = json.name;
+				this.saveSettings();
+			}
+			return new Promise((resolve, reject) => resolve("ok"));
+		} catch (error) {
+			return new Promise((resolve, reject) => reject(error));
+		}
+	};
+
 	createTask = async (taskData: Task) => {
 		try {
 			const data = await this.requestPOST("/open/v1/task", taskData);
 			if (data) {
-				const { json } = data;
-				console.log(json);
 				new Notice(`Add ${taskData.title}`);
 			}
 		} catch (error) {
@@ -125,18 +157,21 @@ export default class TickTickPlugin extends Plugin {
 			DEFAULT_SETTINGS,
 			await this.loadData()
 		);
-		console.log(this.settings);
-		this.fetchProjects();
+		this.fetchUserData();
 	}
+
+	fetchUserData = async () => {
+		if (this.settings.token) {
+			return Promise.all([this.fetchUserInfo(), this.fetchProjects()]);
+		}
+		return new Promise((resolve, reject) => resolve("ok"));
+	};
 
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
 
 	requestGET = (url: string) => {
-		console.log({
-			Authorization: `Bearer ${this.settings.token}`,
-		});
 		return requestUrl({
 			method: "GET",
 			url: "https://api.ticktick.com" + url,
@@ -164,123 +199,20 @@ export default class TickTickPlugin extends Plugin {
 	};
 }
 
-class OauthModal extends Modal {
-	plugin: TickTickPlugin;
-
-	constructor(app: App, plugin: TickTickPlugin) {
-		super(app);
-		this.plugin = plugin;
-	}
-
-	onOpen() {
-		const { contentEl, titleEl } = this;
-		titleEl.setText("This plugin need connect to your TickTick Account");
-		new Setting(contentEl).addButton((btn) =>
-			btn
-				.setButtonText("Sign in TickTick")
-				.setCta()
-				.onClick(() => {
-					const callbackUrl = "http://localhost/callback";
-
-					const window = new BrowserWindow({
-						width: 600,
-						height: 800,
-						webPreferences: {
-							nodeIntegration: false, // We recommend disabling nodeIntegration for security.
-							contextIsolation: true, // We recommend enabling contextIsolation for security.
-							// see https://github.com/electron/electron/blob/master/docs/tutorial/security.md
-						},
-					});
-					const url = `https://ticktick.com/oauth/authorize?client_id=${client_id}&redirect_uri=${encodeURIComponent(
-						callbackUrl
-					)}&response_type=code`;
-
-					window.loadURL(url);
-					console.log({ url });
-					const {
-						session: { webRequest },
-					} = window.webContents;
-
-					const filter = {
-						urls: ["http://localhost/callback*"],
-					};
-
-					webRequest.onBeforeRequest(filter, async ({ url }) => {
-						const urlParams = new URL(url).searchParams;
-						const code = urlParams.get("code");
-						console.log(
-							"user granted previleges to temp credentials (requestToken) " +
-								url,
-							{ code }
-						);
-						if (code) {
-							const urlencoded = new URLSearchParams();
-							urlencoded.append("client_id", client_id);
-							urlencoded.append("client_secret", client_secret);
-							urlencoded.append("code", code);
-							urlencoded.append(
-								"grant_type",
-								"authorization_code"
-							);
-							urlencoded.append(
-								"scope",
-								"tasks:write tasks:read"
-							);
-							urlencoded.append("redirect_uri", callbackUrl);
-							console.log({ urlencoded }, urlencoded.toString());
-							requestUrl({
-								method: "POST",
-								url: "https://ticktick.com/oauth/token",
-								headers: {
-									"Content-Type":
-										"application/x-www-form-urlencoded",
-								},
-								body: urlencoded.toString(),
-							})
-								.then(async ({ json }) => {
-									console.log(json);
-									this.plugin.settings.token =
-										json.access_token;
-									console.log(this.plugin.settings);
-									await this.plugin.saveSettings();
-									window.close();
-									this.close();
-								})
-								.catch((err) => {
-									// error
-									console.log(err);
-									window.close();
-									this.close();
-								});
-						} else {
-							// error
-							window.close();
-							this.close();
-						}
-					});
-				})
-		);
-	}
-
-	onClose() {
-		const { contentEl } = this;
-		contentEl.empty();
-	}
-}
-
 class CreateTaskModal extends Modal {
 	plugin: TickTickPlugin;
 
 	taskData: Task;
 
-	constructor(app: App, plugin: TickTickPlugin) {
+	constructor(app: App, plugin: TickTickPlugin, taskData: Partial<Task>) {
 		super(app);
 		this.plugin = plugin;
+		const { title, content, priority, projectId } = taskData;
 		this.taskData = {
-			title: "",
-			content: "",
-			priority: 0,
-			projectId: "inbox",
+			title: title || "",
+			content: content || "",
+			priority: priority == null ? 0 : priority,
+			projectId: projectId || "inbox",
 		};
 	}
 
@@ -293,7 +225,7 @@ class CreateTaskModal extends Modal {
 			contentEl.createDiv({ cls: "modal-line" })
 		)
 			.setPlaceholder("Title")
-			.setValue("")
+			.setValue(this.taskData.title)
 			.onChange((value) => {
 				this.taskData.title = value;
 			});
@@ -304,7 +236,7 @@ class CreateTaskModal extends Modal {
 			contentEl.createDiv({ cls: "modal-line" })
 		)
 			.setPlaceholder("Content")
-			.setValue("")
+			.setValue(this.taskData.content)
 			.onChange((value) => {
 				this.taskData.content = value;
 			});
@@ -323,8 +255,8 @@ class CreateTaskModal extends Modal {
 					{ inbox: "Inbox" }
 				)
 			)
+			.setValue(this.taskData.projectId)
 			.onChange((value) => {
-				console.log(value);
 				this.taskData.priority = +value;
 			});
 		projectComp.selectEl.style.flex = "auto";
@@ -339,8 +271,8 @@ class CreateTaskModal extends Modal {
 				3: "Medium",
 				5: "High",
 			})
+			.setValue(this.taskData.priority.toString())
 			.onChange((value) => {
-				console.log(value);
 				this.taskData.priority = +value;
 			});
 		priorityComp.selectEl.style.flex = "auto";
@@ -350,7 +282,6 @@ class CreateTaskModal extends Modal {
 			.setButtonText("Create")
 			.setCta()
 			.onClick(() => {
-				console.log(this.taskData);
 				if (this.taskData.title) {
 					this.plugin.createTask(this.taskData);
 					this.close();
@@ -370,26 +301,138 @@ class CreateTaskModal extends Modal {
 class SettingTab extends PluginSettingTab {
 	plugin: TickTickPlugin;
 
+	window: Electron.CrossProcessExports.BrowserWindow | null;
+
 	constructor(app: App, plugin: TickTickPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
+		this.window = null;
 	}
 
 	display(): void {
 		const { containerEl } = this;
 
 		containerEl.empty();
+		containerEl.createEl("h2", { text: "Settings for TickTick Plugin" });
 
-		new Setting(containerEl)
-			.setName("TickTick API token")
-			.setDesc("")
-			.addButton((btn) =>
-				btn
-					.setButtonText("Sign in TickTick")
-					.setCta()
-					.onClick(() => {
-						new OauthModal(this.app, this.plugin).open();
+		const isLogin = !!this.plugin.settings.token;
+
+		if (isLogin) {
+			new Setting(containerEl)
+				.setName(this.plugin.settings.name)
+				.setDesc("")
+				.addButton((btn) =>
+					btn.setButtonText("Logout").onClick(() => {
+						this.plugin.logout();
+						this.display();
 					})
-			);
+				);
+		} else {
+			new Setting(containerEl)
+				.setName("Login with TickTick")
+				.setDesc("")
+				.addButton((btn) =>
+					btn.setButtonText("Login").onClick(() => {
+						const callbackUrl = "http://localhost/callback";
+
+						if (this.window) {
+							this.window.show();
+							return;
+						}
+
+						const window = new BrowserWindow({
+							width: 600,
+							height: 800,
+							webPreferences: {
+								nodeIntegration: false, // We recommend disabling nodeIntegration for security.
+								contextIsolation: true, // We recommend enabling contextIsolation for security.
+								// see https://github.com/electron/electron/blob/master/docs/tutorial/security.md
+							},
+						});
+						this.window = window;
+
+						const close = () => {
+							window.close();
+							setTimeout(() => {
+								this.display();
+							});
+						};
+
+						const url = `https://ticktick.com/oauth/authorize?client_id=${client_id}&redirect_uri=${encodeURIComponent(
+							callbackUrl
+						)}&response_type=code`;
+
+						window.loadURL(url);
+						const {
+							session: { webRequest },
+						} = window.webContents;
+
+						const filter = {
+							urls: ["http://localhost/callback*"],
+						};
+
+						webRequest.onBeforeRequest(filter, async ({ url }) => {
+							const urlParams = new URL(url).searchParams;
+							const code = urlParams.get("code");
+							if (code) {
+								const urlencoded = new URLSearchParams();
+								urlencoded.append("client_id", client_id);
+								urlencoded.append(
+									"client_secret",
+									client_secret
+								);
+								urlencoded.append("code", code);
+								urlencoded.append(
+									"grant_type",
+									"authorization_code"
+								);
+								urlencoded.append(
+									"scope",
+									"tasks:write tasks:read"
+								);
+								urlencoded.append("redirect_uri", callbackUrl);
+								requestUrl({
+									method: "POST",
+									url: "https://ticktick.com/oauth/token",
+									headers: {
+										"Content-Type":
+											"application/x-www-form-urlencoded",
+									},
+									body: urlencoded.toString(),
+								})
+									.then(async ({ json }) => {
+										this.plugin.settings.token =
+											json.access_token;
+										await this.plugin.saveSettings();
+										await this.plugin.fetchUserData();
+										close();
+									})
+									.catch((err) => {
+										// error
+										new Notice("Login Failed");
+										close();
+									});
+							} else {
+								// cancel
+								close();
+							}
+						});
+
+						window.addListener("closed", () => {
+							this.window = null;
+						});
+					})
+				);
+		}
+
+		// new Setting(containerEl)
+		// 	.setName("Clear Local Data")
+		// 	.addButton((button) =>
+		// 		button.setButtonText("Clear").onClick(() => {
+		// 			this.plugin.settings = Object.assign({}, DEFAULT_SETTINGS);
+		// 			this.plugin.saveSettings();
+		// 			this.display();
+		// 		})
+		// 	);
 	}
 }
