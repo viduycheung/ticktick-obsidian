@@ -24,11 +24,12 @@ jobs:
 
             - name: Create release
               env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  GITHUB_TOKEN: ${{ secrets.GH_WORKFLOWS_PAT }}
               run: |
                   tag="${GITHUB_REF#refs/tags/}"
 
                   gh release create "$tag" \
                     --title="$tag" \
                     --draft \
+                    --repo ${{ github.repository }} \
                     main.js manifest.json styles.css
