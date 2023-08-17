@@ -53,7 +53,7 @@ export default class TickTickPlugin extends Plugin {
 		await this.loadSettings();
 
 		this.addCommand({
-			id: "ticktick-create-task",
+			id: "create-task",
 			name: "New task",
 			callback: () => {
 				if (this.checkUserLoginStatus()) {
@@ -332,7 +332,6 @@ class SettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 
 		containerEl.empty();
-		containerEl.createEl("h2", { text: "Settings for TickTick Plugin" });
 
 		const isLogin = !!this.plugin.settings.token;
 
