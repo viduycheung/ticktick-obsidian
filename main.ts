@@ -37,6 +37,7 @@ interface TickTickPluginSettings {
 	projects: Project[];
 	avatarUrl: "";
 	name: "";
+	autoFetchData: boolean;
 }
 
 const DEFAULT_SETTINGS: TickTickPluginSettings = {
@@ -44,6 +45,7 @@ const DEFAULT_SETTINGS: TickTickPluginSettings = {
 	projects: [],
 	avatarUrl: "",
 	name: "",
+	autoFetchData: true,
 };
 
 export default class TickTickPlugin extends Plugin {
@@ -74,16 +76,35 @@ export default class TickTickPlugin extends Plugin {
 			},
 		});
 
+		this.addCommand({
+			id: "fetch-data",
+			name: "Fetch data",
+			callback: async () => {
+				if (this.checkUserLoginStatus()) {
+					await this.fetchUserData();
+					new Notice("Data fetched successfully");
+				}
+			},
+		});
+
 		this.addSettingTab(new SettingTab(this.app, this));
 
-		this.registerInterval(
-			window.setInterval(() => {
-				this.fetchUserData();
-			}, 5 * 60 * 1000)
-		);
+		this.registerAutoDataFetch();
 	}
 
 	onunload() {}
+
+	registerAutoDataFetch = () => {
+		if (this.settings.autoFetchData) {
+			this.registerInterval(
+				window.setInterval(() => {
+					this.fetchUserData();
+				}, 5 * 60 * 1000)
+			);
+		} else {
+			this.fetchUserData();
+		}
+	};
 
 	getFileLink = (file: TFile) => {
 		return `obsidian://open?vault=${file.vault.getName()}&file=${encodeURIComponent(
@@ -442,6 +463,23 @@ class SettingTab extends PluginSettingTab {
 					})
 				);
 		}
+
+		new Setting(containerEl)
+			.setName("Fetch data background")
+			.setDesc(
+				"Automatically fetches your project data in the background to ensure you have the latest data when creating a task"
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.autoFetchData)
+					.onChange(async (value) => {
+						this.plugin.settings.autoFetchData = value;
+						await this.plugin.saveSettings();
+						new Notice(
+							"Please restart Obsidian to let settings effect"
+						);
+					})
+			);
 
 		// new Setting(containerEl)
 		// 	.setName("Clear Local Data")
