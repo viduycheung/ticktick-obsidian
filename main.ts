@@ -21,7 +21,7 @@ type Project = {
 	id: string;
 	name: string;
 	sortOrder: number;
-	isClosed: boolean;
+	closed: boolean;
 };
 
 type Task = {
@@ -285,15 +285,23 @@ class CreateTaskModal extends Modal {
 		// list
 		const projectLine = contentEl.createDiv({ cls: "modal-line" });
 		projectLine.createEl("div", { cls: "label", text: "List" });
+		console.log(
+			"%c [ this.plugin.settings.projects ]-291",
+			"font-size:13px; background:pink; color:#bf2c9f;",
+			this.plugin.settings.projects
+		);
 		const projectComp = new DropdownComponent(projectLine)
 			.addOptions(
-				this.plugin.settings.projects.reduce(
-					(id2Name: Record<string, string>, project) => {
-						id2Name[project.id] = project.name;
-						return id2Name;
-					},
-					{ inbox: "Inbox" }
-				)
+				this.plugin.settings.projects
+					.filter((project) => !project.closed)
+					.sort((project) => project.sortOrder)
+					.reduce(
+						(id2Name: Record<string, string>, project) => {
+							id2Name[project.id] = project.name;
+							return id2Name;
+						},
+						{ inbox: "Inbox" }
+					)
 			)
 			.setValue(this.taskData.projectId)
 			.onChange((value) => {
