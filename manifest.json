@@ -1,7 +1,7 @@
 {
 	"id": "ticktick",
 	"name": "TickTick",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"minAppVersion": "0.15.0",
 	"description": "Check and create tasks in TickTick via Obsidian",
 	"author": "Viduy Cheung",

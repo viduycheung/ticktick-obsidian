@@ -110,9 +110,9 @@ export default class TickTickPlugin extends Plugin {
 	};
 
 	getFileLink = (file: TFile) => {
-		return `obsidian://open?vault=${file.vault.getName()}&file=${encodeURIComponent(
-			file.name
-		)}`;
+		return `obsidian://open?vault=${encodeURIComponent(
+			file.vault.getName()
+		)}&file=${encodeURIComponent(file.name)}`;
 	};
 
 	checkUserLoginStatus = () => {
