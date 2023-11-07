@@ -15,7 +15,6 @@ import {
 import { debounce } from "lodash";
 
 const client_id = "OcvIKsf0r001X1iDAS";
-const client_secret = "F1O36L28oJq)5m(&cccgKDi@x4nE&v*+";
 const callbackUrl = "https://ticktick.com/integrations/oauth/obsidian";
 
 type Project = {
