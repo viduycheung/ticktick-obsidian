@@ -13,9 +13,10 @@ import {
 	TFile,
 } from "obsidian";
 import { debounce } from "lodash";
+import { domain, productName, clientId } from "./config";
 
-const client_id = "OcvIKsf0r001X1iDAS";
-const callbackUrl = "https://ticktick.com/integrations/oauth/obsidian";
+const client_id = clientId;
+const callbackUrl = `https://${domain}/integrations/oauth/obsidian`;
 
 type Project = {
 	id: string;
@@ -118,7 +119,7 @@ export default class TickTickPlugin extends Plugin {
 		const isLogin = this.settings.login;
 		if (!isLogin) {
 			new Notice(
-				"TickTick is not logged in, please check the token in settings."
+				`${productName} is not logged in, please check the token in settings.`
 			);
 		}
 		return isLogin;
@@ -205,7 +206,7 @@ export default class TickTickPlugin extends Plugin {
 	requestGET = (url: string) => {
 		return requestUrl({
 			method: "GET",
-			url: "https://api.ticktick.com" + url,
+			url: `https://api.${domain}${url}`,
 			headers: {
 				Authorization: `Bearer ${this.settings.token}`,
 			},
@@ -213,7 +214,7 @@ export default class TickTickPlugin extends Plugin {
 			switch (e.status) {
 				case 401: {
 					new Notice(
-						"Your TickTick login credentials have expired. Please login again."
+						`Your ${productName} login credentials have expired. Please login again.`
 					);
 					this.logout();
 					break;
@@ -228,7 +229,7 @@ export default class TickTickPlugin extends Plugin {
 	requestPOST = (url: string, body: Record<string, any>) => {
 		return requestUrl({
 			method: "POST",
-			url: "https://api.ticktick.com" + url,
+			url: `https://api.${domain}${url}`,
 			headers: {
 				Authorization: `Bearer ${this.settings.token}`,
 				"Content-Type": "application/json",
@@ -238,7 +239,7 @@ export default class TickTickPlugin extends Plugin {
 			switch (e.status) {
 				case 401: {
 					new Notice(
-						"Your TickTick login credentials have expired. Please check the token in settings."
+						`Your ${productName} login credentials have expired. Please check the token in settings.`
 					);
 					this.logout();
 					break;
@@ -370,13 +371,12 @@ class SettingTab extends PluginSettingTab {
 
 		containerEl.empty();
 
-		const url = `https://ticktick.com/oauth/authorize?client_id=${client_id}&redirect_uri=${encodeURIComponent(
+		const url = `https://${domain}/oauth/authorize?client_id=${client_id}&redirect_uri=${encodeURIComponent(
 			callbackUrl
 		)}&response_type=code`;
 
 		const tokenDesc = document.createDocumentFragment();
-		tokenDesc.textContent =
-			"This Plugin need your TickTick token to fetch the API, you can the token ";
+		tokenDesc.textContent = `This Plugin need your ${productName} token to fetch the API, you can the token `;
 		const tokenLink = containerEl.createEl("a");
 		tokenLink.textContent = "here";
 		tokenLink.href = url;
