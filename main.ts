@@ -84,8 +84,12 @@ export default class TickTickPlugin extends Plugin {
 			name: "Fetch data",
 			callback: async () => {
 				if (this.checkUserLoginStatus()) {
-					await this.fetchUserData();
-					new Notice("Data fetched successfully");
+					try {
+						await this.fetchUserData();
+						new Notice("Data fetched successfully");
+					} catch (error) {
+						new Notice("Data fetched failed");
+					}
 				}
 			},
 		});
@@ -220,7 +224,8 @@ export default class TickTickPlugin extends Plugin {
 					break;
 				}
 				default:
-					break;
+					console.error(e);
+					throw new Error(e);
 			}
 		});
 	};
@@ -245,7 +250,8 @@ export default class TickTickPlugin extends Plugin {
 					break;
 				}
 				default:
-					break;
+					console.error(e);
+					throw new Error(e);
 			}
 		});
 	};
