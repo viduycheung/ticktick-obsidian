@@ -18,6 +18,11 @@ import { domain, productName, clientId } from "./config";
 const client_id = clientId;
 const callbackUrl = `https://${domain}/integrations/oauth/obsidian`;
 
+const sort = {
+	sortOrder: (a: { sortOrder: number }, b: { sortOrder: number }) =>
+		a.sortOrder - b.sortOrder,
+};
+
 type Project = {
 	id: string;
 	name: string;
@@ -26,11 +31,22 @@ type Project = {
 };
 
 type Task = {
+	id: string;
 	title: string;
 	content: string;
 	priority: number;
 	//  0 | 1 | 3 | 5
 	projectId: string;
+	status: number;
+	sortOrder: number;
+	parentId?: string;
+	columnId?: string;
+};
+
+type Column = {
+	id: string;
+	name: string;
+	sortOrder: number;
 };
 
 interface TickTickPluginSettings {
@@ -81,7 +97,7 @@ export default class TickTickPlugin extends Plugin {
 
 		this.addCommand({
 			id: "fetch-data",
-			name: "Fetch data",
+			name: "Fetch user data",
 			callback: async () => {
 				if (this.checkUserLoginStatus()) {
 					try {
@@ -175,7 +191,7 @@ export default class TickTickPlugin extends Plugin {
 		}
 	};
 
-	createTask = async (taskData: Task) => {
+	createTask = async (taskData: Partial<Task>) => {
 		try {
 			const data = await this.requestPOST("/open/v1/task", taskData);
 			if (data) {
@@ -260,7 +276,12 @@ export default class TickTickPlugin extends Plugin {
 class CreateTaskModal extends Modal {
 	plugin: TickTickPlugin;
 
-	taskData: Task;
+	taskData: {
+		title: Task["title"];
+		content: Task["content"];
+		priority: Task["priority"];
+		projectId: Task["projectId"];
+	};
 
 	constructor(app: App, plugin: TickTickPlugin, taskData: Partial<Task>) {
 		super(app);
@@ -307,7 +328,7 @@ class CreateTaskModal extends Modal {
 			.addOptions(
 				this.plugin.settings.projects
 					.filter((project) => !project.closed)
-					.sort((project) => project.sortOrder)
+					.sort(sort.sortOrder)
 					.reduce(
 						(id2Name: Record<string, string>, project) => {
 							id2Name[project.id] = project.name;
@@ -318,7 +339,7 @@ class CreateTaskModal extends Modal {
 			)
 			.setValue(this.taskData.projectId)
 			.onChange((value) => {
-				this.taskData.priority = +value;
+				this.taskData.projectId = value;
 			});
 		projectComp.selectEl.style.flex = "auto";
 
@@ -379,7 +400,7 @@ class SettingTab extends PluginSettingTab {
 
 		const url = `https://${domain}/oauth/authorize?client_id=${client_id}&redirect_uri=${encodeURIComponent(
 			callbackUrl
-		)}&response_type=code&scope=tasks:read&scope=tasks:write`;
+		)}&response_type=code&scope=tasks:read tasks:write`;
 
 		const tokenDesc = document.createDocumentFragment();
 		tokenDesc.textContent = `This Plugin need your ${productName} token to fetch the API, you can the token `;
